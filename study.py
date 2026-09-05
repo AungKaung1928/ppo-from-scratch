@@ -46,7 +46,10 @@ from dataclasses import replace
 
 import numpy as np
 
+from boxcheck import require_quiet_box
 from ppo import Config, train
+from ppo_continuous import ConfigC
+from ppo_continuous import train as train_c
 
 STUDY_SEEDS = list(range(16))
 SEARCH_SEEDS = [100, 101, 102, 103]
@@ -73,11 +76,11 @@ SEARCH = {
 
 
 def _run(cfg):
-    return train(cfg, verbose=False)
+    return (train_c if isinstance(cfg, ConfigC) else train)(cfg, verbose=False)
 
 
 def run_grid(spec, seeds, out, base=None):
-    base = base or Config()
+    base = base if base is not None else Config()
     jobs = [replace(base, seed=s, tag=tag, out=out, **kw)
             for tag, kw in spec.items() for s in seeds]
     t0 = time.perf_counter()
@@ -202,14 +205,7 @@ def significance(results, budget):
 
 
 def check_box(force):
-    load1 = float(open("/proc/loadavg").read().split()[0])
-    if load1 > LOAD_LIMIT and not force:
-        raise SystemExit(
-            f"1-minute load average is {load1:.2f} (limit {LOAD_LIMIT}). "
-            "Something else is using the machine -- most likely the detection "
-            "training job, which has priority. Not starting. Use --force to "
-            "override, and do not.")
-    print(f"  box check: 1-min load {load1:.2f}, ok")
+    return require_quiet_box(force, limit=LOAD_LIMIT)
 
 
 def main():
@@ -219,8 +215,15 @@ def main():
     ap.add_argument("--out", default="runs")
     ap.add_argument("--total-timesteps", type=int, default=Config().total_timesteps)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--family", choices=["discrete", "continuous"],
+                    default="discrete",
+                    help="discrete = ppo.py on the numpy plant (steps 3-5); "
+                         "continuous = ppo_continuous.py on the MuJoCo plant "
+                         "(step 6). Different plant AND different action space, "
+                         "so the two are never pooled.")
     a = ap.parse_args()
-    base = replace(Config(), total_timesteps=a.total_timesteps)
+    base = replace(ConfigC() if a.family == "continuous" else Config(),
+                   total_timesteps=a.total_timesteps)
     budget = base.total_timesteps
     check_box(a.force)
     os.makedirs(a.out, exist_ok=True)

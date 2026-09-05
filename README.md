@@ -21,7 +21,7 @@ while that one is training.
 | 3 | PPO from scratch, single file, categorical policy | **done** |
 | 4 | Seed study: >=5 seeds, median + IQR, steps-to-threshold | **done, 16 seeds** |
 | 5 | Ablations: no GAE, no advantage normalisation, no ratio clipping | **done, 16 seeds each** |
-| 6 | *stretch* continuous-action MuJoCo version, Gaussian policy | not started |
+| 6 | *stretch* continuous-action MuJoCo version, Gaussian policy | **env done, 6/6 checks. Gaussian PPO written + tuned. 16-seed study NOT RUN — box busy** |
 
 **Solved** = mean return >= 475 over 100 consecutive episodes, episode capped at
 500 steps. **Steps-to-threshold** = environment steps consumed before that is
@@ -573,6 +573,155 @@ repo installs nothing.
 - The basin comparison uses the greedy (argmax) policy. The stochastic policy
   used during training has a different, smaller basin.
 
+---
+
+## Step 6 (stretch) — continuous actions on MuJoCo
+
+`cartpole_mj.xml`, `mj_cartpole.py`, `ppo_continuous.py`. 6/6 environment
+checks pass. **The 16-seed study for this step has not been run** — see "Box
+etiquette" below.
+
+Two things change from steps 1–5 at once, so both are pinned down separately.
+
+### The plant is identical — verified to 1.4e-14
+
+`cartpole_mj.xml` sets the inertias by hand (`inertiafromgeom="false"`) instead
+of letting MuJoCo derive them from a capsule geom. A capsule adds hemispherical
+caps and a cylinder adds a `3r²/12` term; the `4/3` in `cartpole.py` is exactly
+the uniform-thin-rod assumption, so deriving inertia from the geom would have
+made these two plants *nearly* the same object, which is the worst possible
+state to be in.
+
+| check | result |
+|---|---|
+| V1. MuJoCo `qacc` == `cartpole.accelerations()`, 5000 random states | max abs **1.42e-14**, max rel **2.23e-12** |
+
+The two simulators are describing the same rigid body. Anything that differs
+from here on is the integrator or the action space, and cannot be blamed on the
+model.
+
+### The integrator is different, and that is not reconcilable
+
+MuJoCo's `Euler` is semi-implicit: velocity first, then position advanced with
+the **new** velocity. `cartpole.py` uses the explicit ordering because that is
+what CartPole-v1 does. So:
+
+| | |
+|---|---|
+| V2. one-step gap, same state and same force | median \|dθ\| **5.84e-3 rad**, max **7.02e-3** (3.35% of the 12° limit) |
+| | median \|dx\| 3.90e-3 m |
+
+| V3. energy drift, zero control, θ₀ = 0.5 rad | at 50 steps | at 500 steps |
+|---|---|---|
+| MuJoCo semi-implicit | +6.69% | **+9.85%** |
+| our explicit Euler (step 1) | **+0.43%** | +145.0% |
+
+Semi-implicit Euler is worse in the short run and dramatically better in the
+long run: its energy error oscillates with bounded amplitude, while the explicit
+version's grows. Neither is "the correct plant" — they are two discretisations
+of the same continuous system, and this is the reason step 6 gets its own
+baseline instead of borrowing step 4's numbers.
+
+### The step-2 LQR gain transfers unchanged
+
+This is the interesting one. The gain was computed against the numpy plant, in
+step 2, before this file existed. Applied to the MuJoCo plant without
+re-deriving anything:
+
+| V5. step-2 gain `K` on the MuJoCo plant | mean return, 100 episodes |
+|---|---|
+| bang-bang, sign only, ±10 N | **500.0** (min 500) |
+| continuous, clipped to ±10 N | **500.0** (min 500) |
+
+A model-based design survived being moved to a different integrator, at zero
+cost, because it depends on the plant and not on the discretisation. That is the
+smallest honest version of a sim-to-real argument that this repo can make, and
+it is the one thing the learned policy in step 4 was never asked to do.
+
+Other contract checks: V4a truncation at exactly the cap with reward 1.0 each
+step; V4b `step()` after the end raises; V4c same seed bitwise identical;
+V4d a uniform-random continuous policy scores **26.59 ± 0.28** over 2000
+episodes against **22.09 ± 0.12** for the discrete env — a random continuous
+action averages less force than a random ±10 N bang, so it perturbs the pole
+less and survives slightly longer.
+
+### The Gaussian policy
+
+`ppo_continuous.py` imports `compute_gae` and `layer_init` from `ppo.py` rather
+than copying them, so the two implementations cannot drift apart. Only the head
+changes: `Categorical(logits)` becomes `Normal(mu(s), exp(log_std))` with
+`log_std` a free parameter, log-prob summed over action dimensions, and Gaussian
+differential entropy.
+
+`ent_coef` defaults to **0.0** here and 0.01 in `ppo.py`. Gaussian differential
+entropy is unbounded below and can go negative, so an entropy bonus pushes sigma
+up with no floor — the same coefficient does not mean the same thing in the two
+files.
+
+**Action clipping is biased and the size of the bias is reported.** The Gaussian
+has support on all of R; the actuator saturates at ±1. The action is clipped at
+the environment boundary while the log-probability is computed on the unclipped
+sample, so every out-of-range sample is credited with a density it did not act
+under. The honest alternatives are a tanh-squashed policy with the
+change-of-variables correction, or a Beta policy on the bounded interval;
+neither is used. Instead every run reports its saturation fraction.
+
+Search on seeds 100–101 (150k steps, disjoint from any study seed):
+
+| init `log_std` | lr | solved | steps-to-threshold | final sigma | saturation |
+|---|---|---|---|---|---|
+| **−1.0** | **2e-3** | **2/2** | **63,392 / 65,528** | **0.133** | **0.5%** |
+| −0.5 | 2e-3 | 2/2 | 62,632 / 72,504 | 0.238 | 6.9% |
+| −1.5 | 1e-3 | 2/2 | 75,736 / 76,456 | 0.174 | 0.0% |
+| −1.0 | 1e-3 | 2/2 | 77,664 / 80,376 | 0.339 | 5.8% |
+| −0.5 | 1e-3 | 2/2 | 80,216 / 69,264 | 0.435 | 12.3% |
+| 0.0 | 1e-3 | 2/2 | 112,936 / 78,800 | 0.785 | **36.7%** |
+| −1.0 | 5e-4 | 0/2 | — | 0.432 | 3.1% |
+
+The `init_log_std = 0` row is the point of the table: sigma = 1 on a ±1 action
+range means **37% of sampled actions are outside the actuator range**, the
+policy spends most of its probability mass on actions the plant cannot execute,
+and it costs roughly 50% more environment steps. Initialising the standard
+deviation is not a detail on a bounded action space.
+
+### What is not yet measured
+
+The 16-seed study and the three ablations on the continuous version. The command
+is `python study.py --family continuous --mode ablations --out runs_c`, roughly
+12 minutes at 4-way parallel, and it refuses to start while the box is busy.
+Until it runs there is no median, no IQR and no steps-to-threshold for step 6,
+so no claim is made about whether the step-5 result — clipping dominates —
+survives the change of action space. Two seeds is an anecdote.
+
+---
+
+## Box etiquette, and the time it failed
+
+This machine has 8 threads shared with `mujoco-clutter-detect`, which has
+priority. Every entry point that starts training calls
+`boxcheck.require_quiet_box()` and refuses above a 1-minute load average of 4.0.
+
+That guard originally lived only in `study.py`, and it did not help. The
+step-6 hyperparameter sweep was launched from a bare shell loop, which never
+called `study.py`, and it ran 11:30–11:33 straight through a `train_det.py`
+that had started at 11:25 and was using 770% CPU. A guard on the front door is
+not a guard, so it now lives in `boxcheck.py` and is called by `ppo.py`,
+`ppo_continuous.py` and `study.py` alike, and it prints the offending process.
+
+Consequences, stated rather than buried:
+
+- **The step-6 search wall-clock numbers are contaminated** and are not
+  reported above. The *learning* outcomes are not: runs are seeded and
+  single-threaded, and two identical configurations submitted under different
+  tags during that window returned bitwise-identical steps-to-threshold
+  (80,216 / 69,264), which is the evidence that contention moved the clock and
+  nothing else.
+- **`mj_cartpole.py`'s V6 throughput figure (73,962 env steps/s, ~5x slower
+  than the numpy env) may also have been measured under load** and should be
+  re-run on a quiet box before being quoted.
+- **Steps 1–5 are clean.** The 64-run study finished at 11:19, six minutes
+  before the detection job started, and `study.py`'s guard passed at launch.
+
 ## Running
 
 ```bash
@@ -583,6 +732,9 @@ python ppo.py --seed 0        # step 3, one 150k-step run, ~11 s
 python study.py --mode all    # steps 3-5, 96 runs, ~8 min, 4-way parallel
 python compare.py             # LQR vs PPO basin comparison, ~3 min
 python visualize.py --controller lqr        # MuJoCo viewer
+python mj_cartpole.py         # step 6 env, 6/6 checks, ~2 min
+python ppo_continuous.py --seed 0                            # one Gaussian run
+python study.py --family continuous --mode ablations --out runs_c   # NOT YET RUN
 ```
 
 No dependencies beyond numpy, already in the shared `~/personal/ml/.venv`.

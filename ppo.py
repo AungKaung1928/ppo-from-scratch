@@ -83,6 +83,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from boxcheck import require_quiet_box
 from cartpole import CartPoleEnv
 
 torch.set_num_threads(1)
@@ -335,7 +336,10 @@ def parse():
     p.add_argument("--no-clip", action="store_true")
     p.add_argument("--no-anneal-lr", action="store_true")
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--force", action="store_true",
+                   help="start even if the box is busy. Do not.")
     a = p.parse_args()
+    require_quiet_box(a.force, quiet=a.quiet)
     cfg = Config(**{k: getattr(a, k) for k in asdict(d) if hasattr(a, k)})
     cfg.use_gae = not a.no_gae
     cfg.use_advnorm = not a.no_advnorm
