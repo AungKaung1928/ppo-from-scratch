@@ -21,7 +21,7 @@ while that one is training.
 | 3 | PPO from scratch, single file, categorical policy | **done** |
 | 4 | Seed study: >=5 seeds, median + IQR, steps-to-threshold | **done, 16 seeds** |
 | 5 | Ablations: no GAE, no advantage normalisation, no ratio clipping | **done, 16 seeds each** |
-| 6 | *stretch* continuous-action MuJoCo version, Gaussian policy | **env done, 6/6 checks. Gaussian PPO written + tuned. 16-seed study NOT RUN — box busy** |
+| 6 | *stretch* continuous-action MuJoCo version, Gaussian policy | **done, 6/6 env checks, 16 seeds + 3 ablations** |
 
 **Solved** = mean return >= 475 over 100 consecutive episodes, episode capped at
 500 steps. **Steps-to-threshold** = environment steps consumed before that is
@@ -600,14 +600,17 @@ repo installs nothing.
   matters because of the 10 epochs; at 1 epoch it would matter much less.
 - The basin comparison uses the greedy (argmax) policy. The stochastic policy
   used during training has a different, smaller basin.
+- Step 6 repeats the ablations on a different *action space*, not a different
+  task. The plant, the reward and the horizon are the same, so it tests whether
+  the conclusion is an artefact of the categorical head — not whether it holds
+  anywhere else.
 
 ---
 
 ## Step 6 (stretch) — continuous actions on MuJoCo
 
 `cartpole_mj.xml`, `mj_cartpole.py`, `ppo_continuous.py`. 6/6 environment
-checks pass. **The 16-seed study for this step has not been run** — see "Box
-etiquette" below.
+checks pass, 16 seeds and 3 ablations measured.
 
 Two things change from steps 1–5 at once, so both are pinned down separately.
 
@@ -712,14 +715,80 @@ policy spends most of its probability mass on actions the plant cannot execute,
 and it costs roughly 50% more environment steps. Initialising the standard
 deviation is not a detail on a bounded action space.
 
-### What is not yet measured
+### Seed study — 16 seeds, Gaussian policy on MuJoCo
 
-The 16-seed study and the three ablations on the continuous version. The command
-is `python study.py --family continuous --mode ablations --out runs_c`, roughly
-12 minutes at 4-way parallel, and it refuses to start while the box is busy.
-Until it runs there is no median, no IQR and no steps-to-threshold for step 6,
-so no claim is made about whether the step-5 result — clipping dominates —
-survives the change of action space. Two seeds is an anecdote.
+Same protocol as step 4: seeds 0-15, 150k-step budget, "solved" = mean return
+>= 475 over 100 consecutive episodes with the episode capped at 500 steps.
+
+| | solved | steps-to-threshold median | IQR | greedy eval (100 ep) |
+|---|---|---|---|---|
+| discrete, `ppo.py` (step 4) | 16/16 | 62,144 | [60,442, 63,448] | 500.0 |
+| **continuous, `ppo_continuous.py`** | **16/16** | **63,748** | **[62,008, 65,636]** | **500.0** |
+
+**Moving from two discrete actions to a one-dimensional Gaussian costs 2.6% of
+the sample budget on this task, and the IQRs overlap.** That is a smaller gap
+than expected. It is not evidence that continuous control is free in general —
+it is evidence that on a plant this small, with the action range matched to the
+force the discrete policy was already applying, the extra difficulty of learning
+a mean *and* a standard deviation is nearly paid for by the finer control
+authority. The saturation numbers below are why: the tuned policy barely uses
+the continuous range.
+
+16 runs, 73.5 s wall at 4-way parallel, median 21.9 s per run.
+
+### Ablations — the step-5 ranking transfers, and clipping gets worse
+
+Same three switches, same 16 seeds, same budget.
+
+| ablation | solved | steps median | vs baseline | permutation p | final sigma | saturation |
+|---|---|---|---|---|---|---|
+| baseline | 16/16 | 63,748 | 1.00x | — | 0.136 | 0.5% |
+| no advantage normalisation | 16/16 | 64,664 | 1.01x | **0.73** | 0.144 | 0.1% |
+| no GAE (lambda = 1) | 16/16 | 71,760 | 1.13x | 0.0032 | 0.218 | 0.8% |
+| **no ratio clipping** | **0/16** | **>150,000** | **2.35x** | 0.0008 | 0.088 | **28.2%** |
+
+Side by side with step 5:
+
+| ablation | discrete | continuous |
+|---|---|---|
+| no advantage normalisation | 1.04x, 16/16, p=0.054 | 1.01x, 16/16, p=0.73 |
+| no GAE | 1.11x, 16/16, p=0.0006 | 1.13x, 16/16, p=0.0032 |
+| **no ratio clipping** | **2.34x, 8/16 solved** | **2.35x, 0/16 solved** |
+
+**The ordering survives the change of action space; the magnitude of the top
+effect does not.** Without clipping the discrete policy still gets half its
+seeds to threshold. The Gaussian policy gets none — 0/16, median greedy return
+126 against a 500 cap.
+
+The failure mechanism is visible in the two right-hand columns and it is
+specific to the continuous case. `no_clip` ends with the *smallest* sigma of any
+config (0.088) and by far the *largest* saturation fraction (28.2%, up to 80.6%
+on the worst seed). A Gaussian with sigma = 0.088 only puts 28% of its mass
+outside [-1, 1] if the mean sits at roughly +-0.95 — the mean has been driven
+onto the actuator rail while the standard deviation collapsed around it. That is
+the unclipped update doing exactly what clipping exists to prevent: with an
+importance ratio unbounded above on a continuous density, one favourable
+minibatch moves the mean as far as the gradient points, and the nine remaining
+epochs on that same batch reinforce a policy that is already off the plant's
+control range. The discrete policy cannot do this — a categorical ratio is
+bounded by `1 / pi_old(a)` on a two-element support, and the worst it can do is
+become deterministic between two actions that are both executable.
+
+So the honest step-6 conclusion is narrower than "clipping matters more in
+continuous control". It is: **on an action space where the policy can place mass
+outside the actuator range, removing the clip is not a slowdown, it is a
+failure mode.** One task, one action dimension, one plant.
+
+### Cost
+
+| | wall | runs |
+|---|---|---|
+| seed study | 73.5 s | 16 |
+| seed study + 3 ablations | 426.3 s | 64 |
+
+Both on a quiet box (1-min load 0.32 and 1.88 at entry, block 2 finished at
+14:06), 4-way parallel at `nice 10`. Longest single run 26 s, well inside the
+10-minute rule.
 
 ---
 
@@ -744,9 +813,12 @@ Consequences, stated rather than buried:
   tags during that window returned bitwise-identical steps-to-threshold
   (80,216 / 69,264), which is the evidence that contention moved the clock and
   nothing else.
-- **`mj_cartpole.py`'s V6 throughput figure (73,962 env steps/s, ~5x slower
-  than the numpy env) may also have been measured under load** and should be
-  re-run on a quiet box before being quoted.
+- **`mj_cartpole.py`'s V6 throughput figure was measured under load, and
+  re-measuring proved it.** Contended: 73,962 env steps/s. Quiet box, same
+  binary, same check: **145,458 steps/s** — 1.97x, against a numpy env at
+  373,919/s, so MuJoCo is 2.6x slower rather than the 5x first recorded. A
+  throughput number carries the load average it was taken under or it carries
+  nothing.
 - **Steps 1–5 are clean.** The 64-run study finished at 11:19, six minutes
   before the detection job started, and `study.py`'s guard passed at launch.
 
@@ -762,7 +834,7 @@ python compare.py             # LQR vs PPO basin comparison, ~3 min
 python visualize.py --controller lqr        # MuJoCo viewer
 python mj_cartpole.py         # step 6 env, 6/6 checks, ~2 min
 python ppo_continuous.py --seed 0                            # one Gaussian run
-python study.py --family continuous --mode ablations --out runs_c   # NOT YET RUN
+python study.py --family continuous --mode ablations --out runs_c   # step 6, 64 runs, ~7 min
 ```
 
 No dependencies beyond numpy, already in the shared `~/personal/ml/.venv`.
