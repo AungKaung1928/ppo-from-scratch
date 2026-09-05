@@ -544,10 +544,38 @@ number in this repo is measured against the numpy one.
 source ~/personal/ml/env.sh
 python visualize.py --controller lqr
 python visualize.py --controller ppo --ckpt runs/study/baseline_seed0.pt
-python visualize.py --controller lqr --theta-dot0 2.0        # near the basin edge
-python visualize.py --controller ppo --theta-dot0 1.2        # over PPO's edge
+python visualize.py --controller random                      # dies in ~20 steps
 python visualize.py --controller lqr --record out/frames     # offscreen, no window
 ```
+
+### Reproducing the basin result in three windows
+
+Same disturbance, applied from the exact origin, no random init:
+
+```bash
+python visualize.py --controller lqr --zero-init --theta-dot0 1.5
+python visualize.py --controller ppo --ckpt runs/study/baseline_seed2.pt --zero-init --theta-dot0 1.5
+python visualize.py --controller ppo --ckpt runs/study/baseline_seed0.pt --zero-init --theta-dot0 1.5
+```
+
+| controller | outcome at `theta_dot0 = 1.5 rad/s` | peak \|theta\| |
+|---|---|---|
+| LQR | survives 500 steps | 46% of the limit |
+| PPO seed 2 | **falls at step 18** (0.36 s) | 113% |
+| PPO seed 0 | survives 500 steps | 52% |
+
+Both findings in one experiment: the learned policy is worse than the
+model-based one at the median, *and* the spread across seeds is enormous —
+critical `theta_dot0` is 2.004 rad/s for seed 0 and 0.831 rad/s for seed 2, from
+identical hyperparameters and an identical step budget. All three score 500.0 on
+the nominal task and are indistinguishable by return.
+
+`--zero-init` matters. Without it the random ±0.05 init is still present, and a
+negative `theta0` paired with a positive `theta_dot0` is the pole rotating *back
+towards* upright — easier, not harder. Every basin number in this README is
+bisected from the origin, so reproducing them needs the flag. `baseline_seed0`
+is also the best of the 16 seeds, not a typical one; it is the default
+checkpoint only because it is the first.
 
 The MJCF matches the physical parameters (cart 1.0 kg, pole 0.1 kg, half-length
 0.5 m, rail ±2.4 m, red markers at the termination limits) so that a step-6

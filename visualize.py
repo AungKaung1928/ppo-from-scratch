@@ -86,13 +86,24 @@ def main():
     ap.add_argument("--theta0", type=float, default=None)
     ap.add_argument("--theta-dot0", type=float, default=None)
     ap.add_argument("--x-dot0", type=float, default=None)
+    ap.add_argument("--zero-init", action="store_true",
+                    help="start from exactly [0,0,0,0] before applying the "
+                         "--theta0/--theta-dot0/--x-dot0 overrides, so a single "
+                         "axis is isolated. Without it the random +-0.05 init "
+                         "is still there and can help or hurt -- a negative "
+                         "theta0 with a positive theta_dot0 is the pole "
+                         "rotating BACK towards upright, which is easier, not "
+                         "harder. The basin numbers in the README are all "
+                         "bisected from the origin, so use this to reproduce "
+                         "them.")
     ap.add_argument("--record", default=None, metavar="DIR",
                     help="render offscreen to PNG frames instead of opening a window")
     ap.add_argument("--every", type=int, default=4, help="record every Nth step")
     a = ap.parse_args()
 
     rng = np.random.default_rng(a.seed)
-    s0 = rng.uniform(-cp.INIT_RANGE, cp.INIT_RANGE, size=4)
+    s0 = (np.zeros(4) if a.zero_init
+          else rng.uniform(-cp.INIT_RANGE, cp.INIT_RANGE, size=4))
     for key, i in (("theta0", THETA), ("theta_dot0", THETA_DOT), ("x_dot0", X_DOT)):
         v = getattr(a, key)
         if v is not None:
