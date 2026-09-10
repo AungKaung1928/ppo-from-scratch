@@ -12,6 +12,8 @@ understanding that recursion is the point.
 Secondary project. `../mujoco-clutter-detect` has priority; nothing here runs
 while that one is training.
 
+**Walkthrough:** https://aungkaung1928.github.io/projects/ppo-from-scratch.html — the same project explained end to end, file by file.
+
 ## Status
 
 | step | what | state |
