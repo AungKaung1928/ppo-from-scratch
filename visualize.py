@@ -16,11 +16,10 @@ CartPole-v1's explicit Euler would be gone. The model file matches the physical
 parameters so that a future step 6 CAN hand the dynamics to MuJoCo, but that
 would be a different environment and would need its own baseline.
 
-On this box MuJoCo renders through llvmpipe (software GL), so expect a
+Where MuJoCo falls back to llvmpipe (software GL), expect a
 low frame rate on a full-size window. It is a 2-body scene; it is fine.
 
 USAGE
-    source ~/personal/ml/env.sh
     python visualize.py --controller lqr
     python visualize.py --controller ppo --ckpt runs/study/baseline_seed0.pt
     python visualize.py --controller lqr --theta-dot0 2.0     # near the basin edge

@@ -541,7 +541,6 @@ numpy plant from `cartpole.py` and writes the resulting `(x, theta)` into
 number in this repo is measured against the numpy one.
 
 ```bash
-source ~/personal/ml/env.sh
 python visualize.py --controller lqr
 python visualize.py --controller ppo --ckpt runs/study/baseline_seed0.pt
 python visualize.py --controller random                      # dies in ~20 steps
@@ -582,8 +581,7 @@ The MJCF matches the physical parameters (cart 1.0 kg, pole 0.1 kg, half-length
 continuous-action version could hand the dynamics to MuJoCo — but that would be
 a different environment and would need its own baseline. GL is software
 (llvmpipe) on this box, so the window frame rate is modest; the offscreen path
-uses matplotlib to write PNGs because imageio is not in the shared venv and this
-repo installs nothing.
+uses matplotlib to write PNGs rather than pulling in imageio for one code path.
 
 ---
 
@@ -825,7 +823,11 @@ Consequences, stated rather than buried:
 ## Running
 
 ```bash
-source ~/personal/ml/env.sh
+git clone https://github.com/AungKaung1928/ppo-from-scratch.git
+cd ppo-from-scratch
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+
 python verify_env.py          # step 1, ~6 s, one core
 python lqr.py                 # step 2, ~30 s, one core
 python ppo.py --seed 0        # step 3, one 150k-step run, ~11 s
@@ -837,6 +839,11 @@ python ppo_continuous.py --seed 0                            # one Gaussian run
 python study.py --family continuous --mode ablations --out runs_c   # step 6, 64 runs, ~7 min
 ```
 
-No dependencies beyond numpy, already in the shared `~/personal/ml/.venv`.
-Nothing in this repo installs anything: the venv is shared with the detection
-project and an install here changes that project's environment mid-run.
+`numpy` and CPU `torch` are the only hard dependencies; `mujoco` is imported
+lazily and is needed only by `mj_cartpole.py` and `visualize.py`. The cartpole
+plant itself is numpy, so every number in this repo reproduces without a
+physics engine installed at all.
+
+`visualize.py` opens a window, so it needs a rendering backend: set `MUJOCO_GL`
+to whatever your machine has (`glfw`, `egl`, `osmesa`). `--record` writes frames
+offscreen and needs no window.

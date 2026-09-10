@@ -1,0 +1,8 @@
+# CPU-only. There is no CUDA anywhere in this project; the cartpole plant is
+# numpy and PPO is small enough that a GPU would be slower than the transfer.
+numpy
+torch
+
+# Optional. Only mj_cartpole.py (the step-6 MuJoCo env) and visualize.py import
+# it, and both import it lazily, so everything else runs without it.
+#   mujoco
