@@ -5,14 +5,83 @@ and PPO implemented from scratch. The question the repo answers is not "can PPO
 balance a pole" — it can — but **what does the learned policy actually buy over a
 controller you can solve for in closed form, and what does it cost in samples.**
 
+**Walkthrough:** https://aungkaung1928.github.io/projects/ppo-from-scratch.html — the same project explained end to end, file by file.
+
+## At a glance
+
+### LQR vs PPO, same plant, same termination test
+
+| | LQR (step 2) | PPO, 16 seeds (steps 3–5) |
+|---|---|---|
+| samples spent on the design | **0 environment steps** | **62,144** steps-to-threshold, median, IQR [60,442, 63,448] |
+| time to a controller | 866 Riccati sweeps, 22 ms (`lqr.py` incl. 7 checks ~30 s) | 11.4 s per 150k-step run, 13,187 env steps/s, one thread |
+| nominal return, 100 consecutive episodes | **500.0** (1000 episodes: 500.00, 0 failures) | **500.0** median, 500.0 worst seed |
+| basin — critical `theta_dot0` from the origin | **2.169 rad/s** | 1.082 rad/s median, 2.004 best seed, 0.831 worst |
+| basin — critical `x_dot0` from the origin | **2.435 m/s** | 0.824 m/s median, 1.935 best seed |
+| failures / 200 episodes, init velocities U(−1.0, 1.0) | **0** | 48 median, 83 worst seed |
+| spread across 16 seeds | none — one gain, no seed | 16/16 solved, yet critical `theta_dot0` spans 0.831–2.004 rad/s |
+| needs a model | yes, exact linearisation of the v1 plant | no |
+| moved to the MuJoCo plant (step 6) | same `K`, no re-derivation: **500.0** | retrained, Gaussian head: 63,748 median, 16/16 |
+
+### The six steps and what each one measured
+
+```mermaid
+flowchart LR
+    S1["Step 1 — hand-written env<br/>13/13 checks pass<br/>2.6e-15 vs Lagrangian solve"]
+    S2["Step 2 — LQR baseline<br/>7/7 checks pass<br/>500.0 at 0 env steps"]
+    S3["Step 3 — PPO from scratch<br/>first config 0/4, clipfrac 0.000<br/>adopted lr 2e-3 / 10 epochs: 4/4"]
+    S4["Step 4 — seed study<br/>16/16 solved<br/>median 62,144 steps"]
+    S5["Step 5 — ablations<br/>no clip 8/16, 2.34x<br/>no GAE 1.11x, no adv-norm 1.04x"]
+    S6["Step 6 — MuJoCo, Gaussian policy<br/>6/6 env checks, 16/16 solved, 63,748<br/>no clip 0/16"]
+    C["compare.py — basin<br/>PPO median 1.082 vs LQR 2.169 rad/s<br/>0.824 vs 2.435 m/s"]
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
+    S2 --> C
+    S4 --> C
+    classDef pass fill:#e6f4ea,stroke:#2e7d32,color:#000
+    classDef mixed fill:#fff4e5,stroke:#ef6c00,color:#000
+    classDef neg fill:#fdecea,stroke:#c62828,color:#000
+    class S1,S2,S4 pass
+    class S3,S5,S6 mixed
+    class C neg
+```
+
+### Results
+
+| method | metric | value | condition |
+|---|---|---|---|
+| hand-written env, check 1 | max rel diff vs independent Lagrangian solve | **2.6e-15** | 10k random states, `abs(theta)` up to pi |
+| hand-written env, check 3 | pinned-cart divergence rate vs `sqrt(3g/4l)` | **3.834058** vs 3.834058 s⁻¹ | rel err 3.4e-11 |
+| sign-projected LQR | mean return, 100 consecutive episodes | **500.0** | 0 environment steps, steps-to-threshold 0 |
+| LQR, Riccati recursion | sweeps to converge | **866** (theory ~923) | 22 ms, DARE residual 6.63e-10 |
+| PPO baseline (discrete) | steps-to-threshold, median | **62,144** | IQR [60,442, 63,448], 16/16 solved, 150k budget |
+| PPO baseline (discrete) | greedy eval, 100 episodes | **500.0** | median and worst seed |
+| no advantage normalisation | steps-to-threshold, median | 64,884 (1.04x) | 16/16, permutation p **0.054** |
+| no GAE (lambda = 1) | steps-to-threshold, median | 68,948 (1.11x) | 16/16, p 0.0006 |
+| **no ratio clipping** | steps-to-threshold, median | **145,368 (2.34x)** | **8/16** solved, p 0.0001 |
+| LQR vs PPO basin | critical `theta_dot0` | **2.169** vs 1.082 rad/s | PPO median over 16 seeds, best 2.004 |
+| LQR vs PPO basin | critical `x_dot0` | **2.435** vs 0.824 m/s | PPO median over 16 seeds, best 1.935 |
+| MuJoCo plant, V1 | `qacc` vs `cartpole.accelerations()` | max abs **1.42e-14** | 5000 random states |
+| step-2 `K` on the MuJoCo plant | mean return, 100 episodes | **500.0** | bang-bang and continuous, min 500 |
+| PPO continuous (Gaussian) | steps-to-threshold, median | **63,748** | IQR [62,008, 65,636], 16/16, 2.6% over discrete |
+| **continuous, no ratio clipping** | solved | **0/16** | >150,000, saturation 28.2%, median greedy return 126 |
+| cost | one 150k-step run | **11.4 s** | 13,187 env steps/s, `torch.set_num_threads(1)` |
+
+### Key points
+
+- **PPO matches LQR and pays 62,144 steps for it.** 16/16 seeds solve, median steps-to-threshold 62,144 (IQR [60,442, 63,448]), greedy return 500.0 on every seed; the LQR scores 500.0 having consumed 0 environment steps.
+- **Return saturates, so nothing is ranked on it.** Sweeping `R` from 0.01 to 100 rotates the LQR gain direction by 0.130 and moves return by 0.0, and a `Q = diag(0,0,1,1)` design with `rho = 1.0000` still scores 500.0 — steps 4–5 rank on steps-to-threshold, `compare.py` on the basin, and no reward curve appears in the repo.
+- **PPO's basin is half to a third of LQR's.** Critical `theta_dot0` 1.082 vs 2.169 rad/s and `x_dot0` 0.824 vs 2.435 m/s at identical nominal return; across seeds the critical `theta_dot0` spans 0.831 (seed 2, falls at step 18 from 1.5 rad/s) to 2.004 (seed 0) from identical hyperparameters — the negative finding of the project.
+- **Only ratio clipping matters, by 2.34x.** Without it 8/16 discrete seeds solve (median 145,368, p = 0.0001); no GAE costs 1.11x (p = 0.0006), no advantage normalisation 1.04x (p = 0.054), and at 8 seeds those two came out in the reverse order, so only the large effect is resolved.
+- **Continuous actions cost 2.6%; removing the clip there is a failure mode.** Gaussian policy on the MuJoCo plant (verified identical to 1.42e-14): 63,748 median, 16/16, IQR overlapping the discrete run; without clipping 0/16 solve, the mean driven onto the actuator rail with 28.2% saturation, while the step-2 LQR gain transfers to that plant unchanged at 500.0.
+
+<details><summary><b>Status and step 1 — the environment</b></summary>
+
 No gymnasium. No stable-baselines3. No rllib. No cleanrl copy-paste. No scipy —
 the discrete Riccati equation is solved by iterating the recursion, because
 understanding that recursion is the point.
 
 Secondary project. `../mujoco-clutter-detect` has priority; nothing here runs
 while that one is training.
-
-**Walkthrough:** https://aungkaung1928.github.io/projects/ppo-from-scratch.html — the same project explained end to end, file by file.
 
 ## Status
 
@@ -29,8 +98,6 @@ while that one is training.
 500 steps. **Steps-to-threshold** = environment steps consumed before that is
 first reached. Both are the CartPole-v1 convention, on purpose, so the numbers
 here can be read against anyone else's.
-
----
 
 ## Step 1 — the environment
 
@@ -145,7 +212,9 @@ profile says so.
 Everything else — constants, equations, integrator and its ordering, init
 distribution, thresholds, reward, 500-step cap — matches.
 
----
+</details>
+
+<details><summary><b>Step 2 — the LQR baseline</b></summary>
 
 ## Step 2 — the LQR baseline
 
@@ -333,7 +402,9 @@ failure. It was not. Fixed by making the tolerance relative to `||P||_inf`;
 The general lesson, and it will come back in step 3: an absolute tolerance on a
 quantity whose scale you have not measured is not a convergence criterion.
 
----
+</details>
+
+<details><summary><b>Steps 3–5 — PPO written out, seed study, ablations</b></summary>
 
 ## Step 3 — PPO, written out
 
@@ -491,7 +562,9 @@ survived was only the large one: clipping dominates. Small effects need either
 more seeds or an explicit statement that they were not resolved, and this repo
 gives the p-values so that the reader can see which is which.
 
----
+</details>
+
+<details><summary><b>LQR vs PPO where it counts, watching it, and what steps 3–5 do not prove</b></summary>
 
 ## LQR vs PPO where it counts
 
@@ -605,7 +678,9 @@ uses matplotlib to write PNGs rather than pulling in imageio for one code path.
   the conclusion is an artefact of the categorical head — not whether it holds
   anywhere else.
 
----
+</details>
+
+<details><summary><b>Step 6 (stretch) — continuous actions on MuJoCo</b></summary>
 
 ## Step 6 (stretch) — continuous actions on MuJoCo
 
@@ -790,7 +865,9 @@ Both on a quiet box (1-min load 0.32 and 1.88 at entry, block 2 finished at
 14:06), 4-way parallel at `nice 10`. Longest single run 26 s, well inside the
 10-minute rule.
 
----
+</details>
+
+<details><summary><b>Box etiquette, and the time it failed</b></summary>
 
 ## Box etiquette, and the time it failed
 
@@ -821,6 +898,8 @@ Consequences, stated rather than buried:
   nothing.
 - **Steps 1–5 are clean.** The 64-run study finished at 11:19, six minutes
   before the detection job started, and `study.py`'s guard passed at launch.
+
+</details>
 
 ## Running
 
