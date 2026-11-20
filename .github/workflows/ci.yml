@@ -28,3 +28,20 @@ jobs:
       # Step 2: LQR baseline, 7 checks (linearisation, DARE, gain, closed-loop). numpy only, about 5 s.
       - name: lqr
         run: python lqr.py
+
+  gae:
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # CPU wheel only; the project never uses CUDA.
+      - name: install
+        run: pip install numpy && pip install torch --index-url https://download.pytorch.org/whl/cpu
+      # compute_gae against hand-computed advantages (termination, truncation,
+      # last_done, lambda = 1). Exits 1 on failure.
+      - name: test_gae
+        run: python test_gae.py
