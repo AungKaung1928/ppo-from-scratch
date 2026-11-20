@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 out/
-runs/
+runs/*
+!runs/summary.json
 *.pt
 runs_c/
