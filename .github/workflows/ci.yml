@@ -25,3 +25,6 @@ jobs:
       # numpy only, about 6 s on one core.
       - name: verify_env
         run: python verify_env.py
+      # Step 2: LQR baseline, 7 checks (linearisation, DARE, gain, closed-loop). numpy only, about 5 s.
+      - name: lqr
+        run: python lqr.py
