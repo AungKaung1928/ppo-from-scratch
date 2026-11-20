@@ -28,6 +28,9 @@ jobs:
       # Step 2: LQR baseline, 7 checks (linearisation, DARE, gain, closed-loop). numpy only, about 5 s.
       - name: lqr
         run: python lqr.py
+      # README ablation rows vs runs/summary.json. stdlib only.
+      - name: readme numbers
+        run: python test_readme.py
 
   gae:
     runs-on: ubuntu-latest
