@@ -1,4 +1,4 @@
-"""README ablation rows against runs/summary.json, basin rows against runs/compare.json (stdlib only).
+"""README ablation rows vs runs/summary.json, basin rows vs runs/compare.json, LQR numbers vs a fresh lqr.py run.
 
 Steps-to-threshold medians, IQR, solved counts, ratios and permutation p-values in
 the results table must equal the study summary they were copied from.
@@ -77,6 +77,20 @@ w = C["widened"]["1.0"]
 l = line("failures / 200 episodes, init velocities U(−1.0, 1.0)", "")
 check("widened 1.0 failures", f"**{w['lqr']}** | {median(w['ppo']):.0f} median, {max(w['ppo'])} worst seed" in l, l)
 check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
+
+print("LQR numbers vs a fresh lqr.py run (numpy, ~5 s)")
+import re
+import subprocess
+import sys
+out = subprocess.run([sys.executable, os.path.join(HERE, "lqr.py")], capture_output=True, text=True, check=True).stdout
+sweeps = re.search(r"residual ([0-9.e+-]+), (\d+) sweeps", out)
+pred = re.search(r"~(\d+) to reach 1e-13 relative \(rho\^2 = ([0-9.]+)\)", out)
+rot = re.search(r"max direction diff ([0-9.]+) for R", out)
+text = "\n".join(LINES)
+check("LQR sweeps + theory", f"**{sweeps.group(2)}** (theory ~{pred.group(1)})" in text, sweeps.group(2))
+check("LQR DARE residual", f"DARE residual {float(sweeps.group(1)):.2e}" in text, sweeps.group(1))
+check("LQR rho^2 sentence", f"`rho(Ad-BdK)^2 = {pred.group(2)}`" in text and f"**~{pred.group(1)}** sweeps" in text)
+check("R rotates gain direction", f"rotates the normalised gain direction by **{rot.group(1)}**" in text, rot.group(1))
 
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)

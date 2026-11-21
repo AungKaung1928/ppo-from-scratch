@@ -16,7 +16,7 @@ controller you can solve for in closed form, and what does it cost in samples.**
 | | LQR (step 2) | PPO, 16 seeds (steps 3–5) |
 |---|---|---|
 | samples spent on the design | **0 environment steps** | **62,144** steps-to-threshold, median, IQR [60,442, 63,448] |
-| time to a controller | 866 Riccati sweeps, 22 ms (`lqr.py` incl. 7 checks ~30 s) | 11.4 s per 150k-step run, 13,187 env steps/s, one thread |
+| time to a controller | 866 Riccati sweeps, 22 ms (`lqr.py` incl. 7 checks ~5 s) | 11.4 s per 150k-step run, 13,187 env steps/s, one thread |
 | nominal return, 100 consecutive episodes | **500.0** (1000 episodes: 500.00, 0 failures) | **500.0** median, 500.0 worst seed |
 | basin — critical `theta_dot0` from the origin | **2.169 rad/s** | 1.082 rad/s median, 2.004 best seed, 0.809 worst |
 | basin — critical `x_dot0` from the origin | **2.435 m/s** | 0.824 m/s median, 1.935 best seed |
