@@ -1,4 +1,4 @@
-"""README ablation rows vs runs/summary.json, basin rows vs runs/compare.json, LQR numbers vs a fresh lqr.py run.
+"""README ablation rows vs runs/summary.json, basin rows vs runs/compare.json, LQR and env-check numbers vs fresh lqr.py / verify_env.py runs.
 
 Steps-to-threshold medians, IQR, solved counts, ratios and permutation p-values in
 the results table must equal the study summary they were copied from.
@@ -91,6 +91,15 @@ check("LQR sweeps + theory", f"**{sweeps.group(2)}** (theory ~{pred.group(1)})" 
 check("LQR DARE residual", f"DARE residual {float(sweeps.group(1)):.2e}" in text, sweeps.group(1))
 check("LQR rho^2 sentence", f"`rho(Ad-BdK)^2 = {pred.group(2)}`" in text and f"**~{pred.group(1)}** sweeps" in text)
 check("R rotates gain direction", f"rotates the normalised gain direction by **{rot.group(1)}**" in text, rot.group(1))
+
+print("env-check numbers vs a fresh verify_env.py run (numpy, ~6 s)")
+ve = subprocess.run([sys.executable, os.path.join(HERE, "verify_env.py")], capture_output=True, text=True, check=True).stdout
+rel = re.search(r"max rel diff ([0-9.e+-]+) \(tol", ve)
+lam = re.search(r"lambda measured ([0-9.]+) s\^-1 vs closed form ([0-9.]+) s\^-1", ve)
+n_pass = ve.count("[PASS]")
+check("check 1 rel diff", f"**{float(rel.group(1)):.1e}**" in line("hand-written env, check 1", ""), rel.group(1))
+check("check 3 divergence rate", f"**{lam.group(1)}** vs {lam.group(2)}" in line("hand-written env, check 3", ""), lam.group(0))
+check("13/13 checks", n_pass == 13 and "**done, 13/13 checks pass**" in text, str(n_pass))
 
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)
