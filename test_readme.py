@@ -1,4 +1,4 @@
-"""README ablation rows against runs/summary.json (stdlib only).
+"""README ablation rows against runs/summary.json, basin rows against runs/compare.json (stdlib only).
 
 Steps-to-threshold medians, IQR, solved counts, ratios and permutation p-values in
 the results table must equal the study summary they were copied from.
@@ -50,6 +50,33 @@ for tag, label, pfmt in (("no_advnorm", "no advantage normalisation", "permutati
     check(f"{tag} median + ratio", f"{r['stt_median']:,.0f} ({s['ratio']:.2f}x)" in l, l)
     check(f"{tag} solved", f"{r['solved']}/{r['n']}" in l)
     check(f"{tag} p-value", pfmt.format(s["p"]) in l, pfmt.format(s["p"]))
+
+with open(os.path.join(HERE, "runs", "compare.json")) as f:
+    C = json.load(f)
+
+
+def median(xs):
+    xs = sorted(xs)
+    return (xs[(len(xs) - 1) // 2] + xs[len(xs) // 2]) / 2
+
+
+th, xd = C["critical"]["theta_dot0"], C["critical"]["x_dot0"]
+t = (th["lqr"], median(th["ppo"]), max(th["ppo"]), min(th["ppo"]))
+x = (xd["lqr"], median(xd["ppo"]), max(xd["ppo"]))
+l = line("basin — critical `theta_dot0` from the origin", "")
+check("basin theta headline", f"**{t[0]:.3f} rad/s** | {t[1]:.3f} rad/s median, {t[2]:.3f} best seed, {t[3]:.3f} worst" in l, l)
+l = line("basin — critical `x_dot0` from the origin", "")
+check("basin x headline", f"**{x[0]:.3f} m/s** | {x[1]:.3f} m/s median, {x[2]:.3f} best seed" in l, l)
+l = line("spread across 16 seeds", "")
+check("theta spread", f"spans {t[3]:.3f}–{t[2]:.3f} rad/s" in l, l)
+l = line("LQR vs PPO basin", "critical `theta_dot0`")
+check("basin theta row", f"**{t[0]:.3f}** vs {t[1]:.3f} rad/s | PPO median over 16 seeds, best {t[2]:.3f}" in l, l)
+l = line("LQR vs PPO basin", "critical `x_dot0`")
+check("basin x row", f"**{x[0]:.3f}** vs {x[1]:.3f} m/s | PPO median over 16 seeds, best {x[2]:.3f}" in l, l)
+w = C["widened"]["1.0"]
+l = line("failures / 200 episodes, init velocities U(−1.0, 1.0)", "")
+check("widened 1.0 failures", f"**{w['lqr']}** | {median(w['ppo']):.0f} median, {max(w['ppo'])} worst seed" in l, l)
+check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
 
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)

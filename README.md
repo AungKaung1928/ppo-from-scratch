@@ -18,10 +18,10 @@ controller you can solve for in closed form, and what does it cost in samples.**
 | samples spent on the design | **0 environment steps** | **62,144** steps-to-threshold, median, IQR [60,442, 63,448] |
 | time to a controller | 866 Riccati sweeps, 22 ms (`lqr.py` incl. 7 checks ~30 s) | 11.4 s per 150k-step run, 13,187 env steps/s, one thread |
 | nominal return, 100 consecutive episodes | **500.0** (1000 episodes: 500.00, 0 failures) | **500.0** median, 500.0 worst seed |
-| basin — critical `theta_dot0` from the origin | **2.169 rad/s** | 1.082 rad/s median, 2.004 best seed, 0.831 worst |
+| basin — critical `theta_dot0` from the origin | **2.169 rad/s** | 1.082 rad/s median, 2.004 best seed, 0.809 worst |
 | basin — critical `x_dot0` from the origin | **2.435 m/s** | 0.824 m/s median, 1.935 best seed |
 | failures / 200 episodes, init velocities U(−1.0, 1.0) | **0** | 48 median, 83 worst seed |
-| spread across 16 seeds | none — one gain, no seed | 16/16 solved, yet critical `theta_dot0` spans 0.831–2.004 rad/s |
+| spread across 16 seeds | none — one gain, no seed | 16/16 solved, yet critical `theta_dot0` spans 0.809–2.004 rad/s |
 | needs a model | yes, exact linearisation of the v1 plant | no |
 | moved to the MuJoCo plant (step 6) | same `K`, no re-derivation: **500.0** | retrained, Gaussian head: 63,748 median, 16/16 |
 
@@ -72,7 +72,7 @@ flowchart LR
 
 - **PPO matches LQR and pays 62,144 steps for it.** 16/16 seeds solve, median steps-to-threshold 62,144 (IQR [60,442, 63,448]), greedy return 500.0 on every seed; the LQR scores 500.0 having consumed 0 environment steps.
 - **Return saturates, so nothing is ranked on it.** Sweeping `R` from 0.01 to 100 rotates the LQR gain direction by 0.130 and moves return by 0.0, and a `Q = diag(0,0,1,1)` design with `rho = 1.0000` still scores 500.0 — steps 4–5 rank on steps-to-threshold, `compare.py` on the basin, and no reward curve appears in the repo.
-- **PPO's basin is half to a third of LQR's.** Critical `theta_dot0` 1.082 vs 2.169 rad/s and `x_dot0` 0.824 vs 2.435 m/s at identical nominal return; across seeds the critical `theta_dot0` spans 0.831 (seed 2, falls at step 18 from 1.5 rad/s) to 2.004 (seed 0) from identical hyperparameters — the negative finding of the project.
+- **PPO's basin is half to a third of LQR's.** Critical `theta_dot0` 1.082 vs 2.169 rad/s and `x_dot0` 0.824 vs 2.435 m/s at identical nominal return; across seeds the critical `theta_dot0` spans 0.809 (seed 5) to 2.004 (seed 0) from identical hyperparameters (seed 2, 0.831, is the one that falls at step 18 from 1.5 rad/s) — the negative finding of the project.
 - **Only ratio clipping matters, by 2.34x.** Without it 8/16 discrete seeds solve (median 145,368, p = 0.0001); no GAE costs 1.11x (p = 0.0006), no advantage normalisation 1.04x (p = 0.054), and at 8 seeds those two came out in the reverse order, so only the large effect is resolved.
 - **Continuous actions cost 2.6%; removing the clip there is a failure mode.** Gaussian policy on the MuJoCo plant (verified identical to 1.42e-14): 63,748 median, 16/16, IQR overlapping the discrete run; without clipping 0/16 solve, the mean driven onto the actuator rail with 28.2% saturation, while the step-2 LQR gain transfers to that plant unchanged at 500.0.
 
