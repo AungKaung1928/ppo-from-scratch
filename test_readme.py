@@ -97,7 +97,10 @@ ve = subprocess.run([sys.executable, os.path.join(HERE, "verify_env.py")], captu
 rel = re.search(r"max rel diff ([0-9.e+-]+) \(tol", ve)
 lam = re.search(r"lambda measured ([0-9.]+) s\^-1 vs closed form ([0-9.]+) s\^-1", ve)
 n_pass = ve.count("[PASS]")
-check("check 1 rel diff", f"**{float(rel.group(1)):.1e}**" in line("hand-written env, check 1", ""), rel.group(1))
+# roundoff differs across CPUs / numpy builds (2.6e-15 here, 2.2e-15 on CI): pin the order, not the digits
+r1 = re.search(r"\*\*([0-9.]+e-\d+)\*\*", line("hand-written env, check 1", ""))
+check("check 1 rel diff at roundoff", r1 is not None and float(rel.group(1)) < 1e-14 and float(r1.group(1)) < 1e-14,
+      f"{rel.group(1)} (README {r1.group(1) if r1 else None})")
 check("check 3 divergence rate", f"**{lam.group(1)}** vs {lam.group(2)}" in line("hand-written env, check 3", ""), lam.group(0))
 check("13/13 checks", n_pass == 13 and "**done, 13/13 checks pass**" in text, str(n_pass))
 
