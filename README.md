@@ -906,7 +906,7 @@ Consequences, stated rather than buried:
 ## Running
 
 ```bash
-git clone https://github.com/AungKaung1928/ppo-from-scratch.git
+git clone <this repo URL>
 cd ppo-from-scratch
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
