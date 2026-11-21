@@ -5,6 +5,8 @@ and PPO implemented from scratch. The question the repo answers is not "can PPO
 balance a pole" — it can — but **what does the learned policy actually buy over a
 controller you can solve for in closed form, and what does it cost in samples.**
 
+![Steps to the return threshold per PPO ablation, median and IQR over 16 seeds: baseline 62.1k, no advantage normalisation 64.9k, no GAE 68.9k, no ratio clipping 145.4k with 8/16 solved](docs/ablation.png)
+
 **Walkthrough:** https://aungkaung1928.github.io/projects/ppo-from-scratch.html — the same project explained end to end, file by file.
 
 ## At a glance
