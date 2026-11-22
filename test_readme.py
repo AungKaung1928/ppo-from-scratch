@@ -381,6 +381,9 @@ else:
         label = "bang-bang, sign only, ±10 N" if name == "bang-bang" else "continuous, clipped to ±10 N"
         check(f"V5 {name} row", f"| {label} | **{float(m):.1f}** (min {lo}) |" in LINES, (m, lo))
     check("V5 both controllers", len(v5) == 2, str(v5))
+    (m5, lo5), = {(float(m), lo) for _, m, lo in v5}        # one Results row speaks for both controllers
+    check("Results row step-2 K on MuJoCo", f"| step-2 `K` on the MuJoCo plant | mean return, 100 episodes | **{m5:.1f}** | "
+          f"bang-bang and continuous, min {lo5} |" in LINES, (m5, lo5))
 
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)
