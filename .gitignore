@@ -5,4 +5,5 @@ runs/*
 !runs/summary.json
 !runs/compare.json
 *.pt
-runs_c/
+runs_c/*
+!runs_c/summary.json

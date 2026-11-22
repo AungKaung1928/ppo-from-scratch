@@ -60,6 +60,33 @@ for tag, label, pfmt in (("no_advnorm", "no advantage normalisation", "permutati
     check(f"{tag} solved", f"{r['solved']}/{r['n']}" in l)
     check(f"{tag} p-value", pfmt.format(s["p"]) in l, pfmt.format(s["p"]))
 
+# step 6, continuous actions: rows vs runs_c/summary.json (sigma and saturation come from per-run logs, not tracked)
+with open(os.path.join(HERE, "runs_c", "summary.json")) as f:
+    SC = json.load(f)
+cstudy = {r["tag"]: r for r in SC["study"]}
+csig = {r["tag"]: r for r in SC["significance"]}
+cb = cstudy["baseline"]
+cost = cb["stt_median"] / b["stt_median"] - 1
+l = line("PPO continuous (Gaussian)", "steps-to-threshold")
+check("continuous row", f"**{cb['stt_median']:,.0f}** | IQR [{cb['stt_q1']:,.0f}, {cb['stt_q3']:,.0f}], "
+      f"{cb['solved']}/{cb['n']}, {100 * cost:.1f}% over discrete" in l, l)
+l = line("**continuous, no ratio clipping**", "solved")
+cn = cstudy["no_clip"]
+check("continuous no_clip row", f"**{cn['solved']}/{cn['n']}**" in l and f"median greedy return {cn['greedy_median']:.0f}" in l, l)
+l = line("**continuous, `ppo_continuous.py`**", "")
+check("continuous step-6 table", f"**{cb['solved']}/{cb['n']}** | **{cb['stt_median']:,.0f}** | "
+      f"**[{cb['stt_q1']:,.0f}, {cb['stt_q3']:,.0f}]** | **{cb['greedy_median']:.1f}**" in l, l)
+# the continuous ablation table is the one with sigma and saturation columns; its rows reuse the step-5 labels
+top = LINES.index("| ablation | solved | steps median | vs baseline | permutation p | final sigma | saturation |")
+CTAB = {l.split(" | ")[0][2:]: l for l in LINES[top + 2:top + 6]}
+for tag, label in (("no_advnorm", "no advantage normalisation"), ("no_gae", "no GAE (lambda = 1)")):
+    r, s = cstudy[tag], csig[tag]
+    l = CTAB[label]
+    check(f"continuous {tag} ablation", f"| {r['solved']}/{r['n']} | {r['stt_median']:,.0f} | {s['ratio']:.2f}x |" in l, l)
+l = CTAB["**no ratio clipping**"]
+check("continuous no_clip ablation", f"**{csig['no_clip']['ratio']:.2f}x** | {csig['no_clip']['p']:.4f}" in l, l)
+check("continuous cost sentence", f"costs {100 * cost:.1f}% of" in "\n".join(LINES))
+
 with open(os.path.join(HERE, "runs", "compare.json")) as f:
     C = json.load(f)
 
