@@ -4,6 +4,7 @@ out/
 runs/*
 !runs/summary.json
 !runs/compare.json
+!runs/hpsearch/
 *.pt
 runs_c/*
 !runs_c/summary.json
