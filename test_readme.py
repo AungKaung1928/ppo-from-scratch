@@ -156,6 +156,28 @@ for k in ("1.0", "1.5", "2.0", "2.5"):
     l = line(f"U(-{k}, {k})", "")
     check(f"LQR widened {k} failures", l.endswith(f"| {C['widened'][k]['lqr']} |"), l)
 
+# hyperparameter search table vs runs/hpsearch/*.json, same statistic as study.summarise (unsolved = budget + 1)
+import glob
+
+import numpy as np
+
+HP = {}
+for p in glob.glob(os.path.join(HERE, "runs", "hpsearch", "*.json")):
+    with open(p) as f:
+        r = json.load(f)
+    HP.setdefault(r["config"]["tag"], []).append(r)
+for label, tag in (("`lr 2e-3`, 10 epochs", "lr2e3_ep10"), ("`lr 1e-3`, 8 epochs, 8 minibatches", "lr1e3_ep8mb8"),
+                   ("`lr 1.5e-3`, 10 epochs", "lr15e4_ep10"), ("`lr 1e-3`, 10 epochs", "lr1e3_ep10"),
+                   ("`lr 2.5e-3`, 4 epochs", "lr25e4_ep4"), ("`lr 3e-4`, 10 epochs", "lr3e4_ep10"),
+                   ("`lr 1e-3`, 4 epochs", "lr1e3_ep4"), ("`lr 3e-4`, 4 epochs", "lr3e4_ep4")):
+    rs = HP[tag]
+    budget = rs[0]["config"]["total_timesteps"]
+    q1, med, q3 = np.percentile([r["steps_to_threshold"] if r["solved"] else budget + 1 for r in rs], [25, 50, 75])
+    f = lambda x: f">{budget:,}" if x > budget else f"{x:,.0f}"
+    tail = f"| {sum(r['solved'] for r in rs)}/{len(rs)} | {f(med)} | " + ("—" if q3 > budget else f"[{f(q1)}, {f(q3)}]") + " |"
+    rows = [l.replace("**", "") for l in LINES if l.replace("**", "").startswith(f"| {label}")]
+    check(f"hp search row {tag}", len(rows) == 1 and rows[0].endswith(tail), (rows, tail))
+
 print("LQR numbers vs a fresh lqr.py run (numpy, ~5 s)")
 import re
 import subprocess
