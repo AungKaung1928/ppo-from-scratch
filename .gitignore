@@ -5,6 +5,7 @@ runs/*
 !runs/summary.json
 !runs/compare.json
 !runs/hpsearch/
+!runs/study/
 *.pt
 runs_c/*
 !runs_c/summary.json

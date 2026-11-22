@@ -135,6 +135,25 @@ check("basin table x", f"| critical `x_dot0` | **{x[0]:.3f} m/s** | {x[1]:.3f} m
 for k, wk in C["widened"].items():
     row6 = f"| U(-{k}, {k}) | **{wk['lqr']}** | {median(wk['ppo']):.0f} | {max(wk['ppo'])} |"
     check(f"widened table {k}", row6 in LINES, row6)
+row6 = (f"| nominal return, 100 episodes | {C['nominal_lqr']:.1f} | {median(C['nominal_ppo']):.1f} | "
+        f"{max(C['nominal_ppo']):.1f} |")
+check("comparison nominal row", row6 in LINES, row6)
+
+
+# "8 seeds vs 16 seeds" table: ratio of medians over study seeds 0-7 and 0-15, from the raw runs/study/*.json
+def study_median(tag, n):
+    v = []
+    for s in range(n):
+        with open(os.path.join(HERE, "runs", "study", f"{tag}_seed{s}.json")) as f:
+            r = json.load(f)
+        v.append(r["steps_to_threshold"] if r["solved"] else r["config"]["total_timesteps"] + 1)
+    return median(v)
+
+
+for tag, label in (("no_gae", "no GAE"), ("no_advnorm", "no advantage normalisation")):
+    r8, r16 = (study_median(tag, n) / study_median("baseline", n) for n in (8, 16))
+    row8 = f"| {label} | {r8:.2f}x | **{r16:.2f}x** |"
+    check(f"8 vs 16 seeds row {tag}", row8 in LINES and f"{r16:.2f}" == f"{sig[tag]['ratio']:.2f}", row8)
 check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
 
 # LQR vs PPO summary table: the cells the rows above do not reach
