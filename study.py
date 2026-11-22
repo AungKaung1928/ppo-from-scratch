@@ -176,7 +176,11 @@ def permutation_test(a, b, n_resamples=100_000, seed=0):
 
 def load_runs(path):
     import glob
-    return [json.load(open(f)) for f in glob.glob(os.path.join(path, "*.json"))]
+    runs = [json.load(open(f)) for f in glob.glob(os.path.join(path, "*.json"))]
+    # run_grid order (ABLATIONS, then seed): the permutation test draws from the
+    # concatenated samples, so glob order would move p in its 4th digit
+    order = list(ABLATIONS)
+    return sorted(runs, key=lambda r: (order.index(r["config"]["tag"]), r["config"]["seed"]))
 
 
 def significance(results, budget):
