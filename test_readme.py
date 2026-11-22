@@ -171,21 +171,32 @@ for tag, label in (("no_gae", "no GAE"), ("no_advnorm", "no advantage normalisat
     row8 = f"| {label} | {r8:.2f}x | **{r16:.2f}x** |"
     check(f"8 vs 16 seeds row {tag}", row8 in LINES and f"{r16:.2f}" == f"{sig[tag]['ratio']:.2f}", row8)
 
-# runs/summary.json itself: its per-ablation stats are exactly study.summarise() over the raw runs/study/*.json
+# runs/summary.json and runs_c/summary.json themselves: per-ablation stats are exactly study.summarise() over the raw runs
 import numpy as np  # noqa: E402
 
-for tag, row in study.items():
-    rs = []
-    for s in range(row["n"]):
-        with open(os.path.join(HERE, "runs", "study", f"{tag}_seed{s}.json")) as f:
-            rs.append(json.load(f))
-    cap = rs[0]["config"]["total_timesteps"]
-    q1, med, q3 = np.percentile([r["steps_to_threshold"] if r["solved"] else cap + 1 for r in rs], [25, 50, 75])
-    calc = {"solved": sum(r["solved"] for r in rs), "stt_median": None if med > cap else float(med),
-            "stt_q1": None if q1 > cap else float(q1), "stt_q3": None if q3 > cap else float(q3),
-            "greedy_median": float(np.median([r["greedy_eval_mean"] for r in rs])),
-            "greedy_min": float(min(r["greedy_eval_mean"] for r in rs))}
-    check(f"summary.json {tag} == raw runs", all(calc[k] == row[k] for k in calc), {k: (calc[k], row[k]) for k in calc if calc[k] != row[k]})
+
+def check_summary_from_raw(runs, rows):
+    for tag, row in rows.items():
+        rs = []
+        for s in range(row["n"]):
+            with open(os.path.join(HERE, runs, "study", f"{tag}_seed{s}.json")) as f:
+                rs.append(json.load(f))
+        cap = rs[0]["config"]["total_timesteps"]
+        q1, med, q3 = np.percentile([r["steps_to_threshold"] if r["solved"] else cap + 1 for r in rs], [25, 50, 75])
+        calc = {"solved": sum(r["solved"] for r in rs), "stt_median": None if med > cap else float(med),
+                "stt_q1": None if q1 > cap else float(q1), "stt_q3": None if q3 > cap else float(q3),
+                "greedy_median": float(np.median([r["greedy_eval_mean"] for r in rs])),
+                "greedy_min": float(min(r["greedy_eval_mean"] for r in rs))}
+        if "saturation_median" in row:      # continuous family only
+            calc.update(final_sigma_median=float(np.median([r["final_sigma"] for r in rs])),
+                        saturation_median=float(np.median([r["saturation_fraction"] for r in rs])),
+                        saturation_max=float(max(r["saturation_fraction"] for r in rs)))
+        check(f"{runs}/summary.json {tag} == raw runs", all(calc[k] == row[k] for k in calc),
+              {k: (calc[k], row[k]) for k in calc if calc[k] != row[k]})
+
+
+check_summary_from_raw("runs", study)
+check_summary_from_raw("runs_c", cstudy)
 check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
 
 # LQR vs PPO summary table: the cells the rows above do not reach

@@ -9,3 +9,4 @@ runs/*
 *.pt
 runs_c/*
 !runs_c/summary.json
+!runs_c/study/
