@@ -204,5 +204,49 @@ check("check 1 rel diff at roundoff", r1 is not None and float(rel.group(1)) < 1
 check("check 3 divergence rate", f"**{lam.group(1)}** vs {lam.group(2)}" in line("hand-written env, check 3", ""), lam.group(0))
 check("13/13 checks", n_pass == 13 and "**done, 13/13 checks pass**" in text, str(n_pass))
 
+
+def near(s, v):
+    """README string s is v rounded to s's last digit (v itself comes printed to 3-4 significant digits)."""
+    m, _, e = s.partition("e")
+    step = 10.0 ** ((int(e) if e else 0) - (len(m.split(".")[1]) if "." in m else 0))
+    return abs(float(s) - v) <= 0.51 * step
+
+
+def ve_num(pattern):
+    return float(re.search(pattern, ve).group(1))
+
+
+def cell(prefix, pattern, metric=""):
+    return re.search(pattern, line(prefix, metric)).group(1)
+
+
+# verification table: seeded numbers exactly, roundoff numbers by order (they move across CPUs, see check 1)
+check("check 2a drift at roundoff", ve_num(r"max relative drift ([0-9.e+-]+)") < 1e-12
+      and float(cell("2a", r"\*\*([0-9.e-]+)\*\*", "Energy conserved")) < 1e-12)
+check("check 2b drift at roundoff", ve_num(r"max absolute drift ([0-9.e+-]+)") < 1e-12
+      and float(cell("2b", r"\*\*([0-9.e-]+)\*\*", "Horizontal momentum")) < 1e-12)
+check("check 3 rel err", ve_num(r"rel err ([0-9.e+-]+) \(tol") < 1e-9 and float(cell("3", r"rel err \*\*([0-9.e-]+)\*\*", "Pinned cart")) < 1e-9)
+steps = re.search(r"terminated after (\d+) steps, return ([0-9.]+)", ve)
+check("check 4c row", f"always-right policy: {steps.group(1)} steps, return {steps.group(2)}" in line("4c", "Reward is 1.0"), steps.group(0))
+thr = re.search(r"theta_threshold ([0-9.]+) rad", ve).group(1)
+check("check 4d row", f"| {thr} rad |" in line("4d", "Termination bounds"), thr)
+check("check 4e row", f"**{ve_num(r'mean return ([0-9.]+) over 100 episodes'):.1f} / 500** over 100 episodes" in line("4e", "Action sign"))
+rnd = re.search(r"(\d+) episodes: mean ([0-9.]+) \+/- ([0-9.]+)", ve)
+check("check 6 row", f"**{rnd.group(2)} ± {rnd.group(3)}** over {int(rnd.group(1)) // 1000}k episodes" in line("6", "Random-policy"), rnd.group(0))
+check("check 7 row", f"bitwise identical, {re.search(r'(\d+) states, max abs diff', ve).group(1)} states" in line("7", "Golden"))
+
+# measured-properties table (deterministic; throughput is machine-dependent and not checked)
+lam_v = float(lam.group(1))
+check("instability rate + e-fold", near(cell("Instability rate about upright, pinned cart", r"\*\*([0-9.]+) s"), lam_v)
+      and near(cell("Instability rate about upright, pinned cart", r"e-fold in (\d+) ms"), 1000 / lam_v))
+eu = re.search(r"median \|d theta\| ([0-9.e+-]+) rad, max ([0-9.e+-]+) rad \(([0-9.]+)% of", ve)
+l = line("One-step Euler error vs RK4, in the operational envelope", "")
+got = re.search(r"median \*\*([0-9.e-]+) rad\*\*, max ([0-9.e-]+) rad \(([0-9.]+)% of", l)
+check("one-step Euler row", all(near(got.group(i), float(eu.group(i))) for i in (1, 2, 3)), (eu.group(0), l))
+e25 = re.search(r"\|d theta\| ([0-9.e+-]+) rad \(([0-9.]+)% of the limit\), \|d x\|", ve)
+got = re.search(r"\*\*([0-9.e-]+) rad\*\* \(([0-9.]+)% of the limit\)", line("Euler vs RK4 after 25 controlled steps (0.5 s), identical forces", ""))
+check("25-step Euler row", all(near(got.group(i), float(e25.group(i))) for i in (1, 2)), e25.group(0))
+check("Euler energy gain row", near(cell("Explicit-Euler energy gain, F=0, 50 steps", r"\*\*\+([0-9.]+)%\*\*"), ve_num(r"\+([0-9.]+)% after 50 steps")))
+
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)
