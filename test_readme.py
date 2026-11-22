@@ -103,6 +103,22 @@ for tag, label in (("baseline", "baseline"), ("no_advnorm", "no advantage normal
         f"| {r['final_sigma_median']:.3f} | {'**' + sat + '**' if tag == 'no_clip' else sat} |"), CTAB[label])
 check("no_clip saturation max", f"up to {100 * cn['saturation_max']:.1f}%" in "\n".join(LINES))
 check("continuous cost sentence", f"costs {100 * cost:.1f}% of" in "\n".join(LINES))
+# remaining cells of the step-6 tables: discrete row, baseline/p/no_clip cells, side-by-side table
+row = (f"| discrete, `ppo.py` (step 4) | {b['solved']}/{b['n']} | {b['stt_median']:,.0f} | "
+       f"[{b['stt_q1']:,.0f}, {b['stt_q3']:,.0f}] | {b['greedy_median']:.1f} |")
+check("step-6 discrete row", row in LINES, row)
+check("continuous baseline ablation row", CTAB["baseline"].startswith(f"| baseline | {cb['solved']}/{cb['n']} | {cb['stt_median']:,.0f} | 1.00x | — |"))
+check("continuous p-values", f"| **{csig['no_advnorm']['p']:.2f}** |" in CTAB["no advantage normalisation"]
+      and f"| {csig['no_gae']['p']:.4f} |" in CTAB["no GAE (lambda = 1)"])
+check("continuous no_clip cells", CTAB["**no ratio clipping**"].startswith(
+    f"| **no ratio clipping** | **{cn['solved']}/{cn['n']}** | **>150,000** |") and cn["stt_median"] is None)
+for label, tag, dp, cp in (("no advantage normalisation", "no_advnorm", "{:.3f}", "{:.2f}"), ("no GAE", "no_gae", "{:.4f}", "{:.4f}")):
+    row = (f"| {label} | {sig[tag]['ratio']:.2f}x, {study[tag]['solved']}/{study[tag]['n']}, p={dp.format(sig[tag]['p'])} | "
+           f"{csig[tag]['ratio']:.2f}x, {cstudy[tag]['solved']}/{cstudy[tag]['n']}, p={cp.format(csig[tag]['p'])} |")
+    check(f"side-by-side {tag}", row in LINES, row)
+row = (f"| **no ratio clipping** | **{sig['no_clip']['ratio']:.2f}x, {study['no_clip']['solved']}/{study['no_clip']['n']} solved** | "
+       f"**{csig['no_clip']['ratio']:.2f}x, {cn['solved']}/{cn['n']} solved** |")
+check("side-by-side no_clip", row in LINES, row)
 
 with open(os.path.join(HERE, "runs", "compare.json")) as f:
     C = json.load(f)
