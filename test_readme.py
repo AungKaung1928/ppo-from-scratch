@@ -170,6 +170,14 @@ check("summary spread row", f"{b['solved']}/{b['n']} solved, yet" in l, l)
 l = line("moved to the MuJoCo plant (step 6)", "")
 check("summary MuJoCo row (PPO cell)", f"{cb['stt_median']:,.0f} median, {cb['solved']}/{cb['n']}" in l, l)
 
+# step-4 "baseline PPO vs LQR" table
+for row4 in (f"| solved (>=475 over 100 consecutive episodes) | **{b['solved']}/{b['n']}** | yes |",
+             f"| steps-to-threshold, median | **{b['stt_median']:,.0f}** | **{LQ['steps_to_threshold']}** |",
+             f"| steps-to-threshold, IQR | [{b['stt_q1']:,.0f}, {b['stt_q3']:,.0f}] | — |",
+             f"| greedy eval, 100 episodes, median | **{b['greedy_median']:.1f}** | {LQ['mean_return_100']:.1f} |",
+             f"| greedy eval, worst seed | {b['greedy_min']:.1f} | — |"):
+    check(f"step-4 table {row4.split('|')[1].strip()}", row4 in LINES, row4)
+
 # step-2 LQR tables vs lqr_baseline.json (results, basin per controller, Q sensitivity) and compare.json (widened)
 for metric, cell in (("mean return, 100 consecutive episodes", f"**{LQ['mean_return_100']:.1f}**"),
                      ("mean return, 1000 episodes", f"**{LQ['mean_return_1000']:.2f}**, 0 failures"),
