@@ -251,6 +251,26 @@ check("LQR DARE residual", f"DARE residual {float(sweeps.group(1)):.2e}" in text
 check("LQR rho^2 sentence", f"`rho(Ad-BdK)^2 = {pred.group(2)}`" in text and f"**~{pred.group(1)}** sweeps" in text)
 check("R rotates gain direction", f"rotates the normalised gain direction by **{rot.group(1)}**" in text, rot.group(1))
 
+
+def lrow(i):
+    return next(l for l in LINES if l.startswith(f"| L{i} | "))
+
+
+def lnum(pattern):
+    return float(re.search(pattern, out).group(1))
+
+
+# L1-L7 table vs the same lqr.py run: roundoff values by order (they move across CPUs), the rest exact
+for i, pat, tol in ((1, r"L1\..*max abs diff ([0-9.e+-]+)", 1e-9), (2, r"L2\..*max abs diff ([0-9.e+-]+)", 1e-12),
+                    (5, r"L5\..*max rel err ([0-9.e+-]+)", 1e-9), (6, r"L6\..*max rel diff ([0-9.e+-]+)", 1e-12)):
+    doc = float(re.search(r"\*\*([0-9.e-]+)\*\*", lrow(i)).group(1))
+    check(f"L{i} at roundoff", lnum(pat) < tol and doc < tol, (lnum(pat), doc))
+l3 = re.search(r"residual ([0-9.e+-]+), (\d+) sweeps", out)
+check("L3 row", f"residual **{float(l3.group(1)):.2e}**, {l3.group(2)} sweeps |" in lrow(3), l3.group(0))
+check("L4 row", f"| **{lnum(r'rho = ([0-9.]+)'):.6f}** |" in lrow(4))
+l7 = re.search(r"L7\..*?([0-9.]+) \(min (\d+), max (\d+)\)", out)
+check("L7 row", f"**{l7.group(1)}** (min {l7.group(2)}, max {l7.group(3)})" in lrow(7), l7.group(0))
+
 print("env-check numbers vs a fresh verify_env.py run (numpy, ~6 s)")
 ve = subprocess.run([sys.executable, os.path.join(HERE, "verify_env.py")], capture_output=True, text=True, check=True).stdout
 rel = re.search(r"max rel diff ([0-9.e+-]+) \(tol", ve)
