@@ -135,6 +135,27 @@ check("summary spread row", f"{b['solved']}/{b['n']} solved, yet" in l, l)
 l = line("moved to the MuJoCo plant (step 6)", "")
 check("summary MuJoCo row (PPO cell)", f"{cb['stt_median']:,.0f} median, {cb['solved']}/{cb['n']}" in l, l)
 
+# step-2 LQR tables vs lqr_baseline.json (results, basin per controller, Q sensitivity) and compare.json (widened)
+for metric, cell in (("mean return, 100 consecutive episodes", f"**{LQ['mean_return_100']:.1f}**"),
+                     ("mean return, 1000 episodes", f"**{LQ['mean_return_1000']:.2f}**, 0 failures"),
+                     ("sample cost of the design", f"**{LQ['sample_cost_env_steps']} environment steps**"),
+                     ("steps-to-threshold", f"**{LQ['steps_to_threshold']}**")):
+    check(f"LQR result row: {metric}", f"| {metric} | {cell} |" in LINES, cell)
+for key, unit in (("theta_dot0", "rad/s"), ("x_dot0", "m/s")):
+    r = LQ["basin"][key]
+    cell = f"| critical `{key}` | **{r['bangbang']:.4f} {unit}** | {r['continuous_clipped']:.4f} {unit} |"
+    check(f"LQR basin row {key}", cell in LINES, cell)
+for label, key in (("`I4`", "I4"), ("`diag(1,1,10,10)` pole-weighted", "diag(1,1,10,10)"),
+                   ("`diag(10,10,1,1)` cart-weighted", "diag(10,10,1,1)"), ("`diag(0,0,1,1)` pole only", "diag(0,0,1,1) pole")):
+    q = LQ["q_sensitivity"][key]
+    l = line(label, "")
+    cells = [c.strip().strip("*") for c in l.split("|")[3:7]]
+    check(f"Q sensitivity row {key}", cells == [f"{q['rho']:.4f}", f"{q['mean_return']:.1f}", f"{q['crit_theta_dot']:.2f} rad/s",
+                                                f"{q['max_abs_x']:.3f} m"], l)
+for k in ("1.0", "1.5", "2.0", "2.5"):
+    l = line(f"U(-{k}, {k})", "")
+    check(f"LQR widened {k} failures", l.endswith(f"| {C['widened'][k]['lqr']} |"), l)
+
 print("LQR numbers vs a fresh lqr.py run (numpy, ~5 s)")
 import re
 import subprocess
