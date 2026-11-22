@@ -20,8 +20,11 @@ def check(name, ok, detail=""):
 
 with open(os.path.join(HERE, "runs", "summary.json")) as f:
     S = json.load(f)
-with open(os.path.join(HERE, "README.md"), encoding="utf-8") as f:
+# docs/DETAILS.md holds every table; the short README.md repeats a few of its rows
+with open(os.path.join(HERE, "docs", "DETAILS.md"), encoding="utf-8") as f:
     LINES = f.read().splitlines()
+with open(os.path.join(HERE, "README.md"), encoding="utf-8") as f:
+    SHORT = f.read()
 
 study = {r["tag"]: r for r in S["study"]}
 sig = {r["tag"]: r for r in S["significance"]}
@@ -33,6 +36,12 @@ def line(prefix, metric):
             return l
     raise AssertionError(f"README row not found: {prefix} | {metric}")
 
+
+for l in SHORT.splitlines():
+    if l.startswith("| ") and not l.startswith("| method |"):
+        check(f"short row {l.split('|')[1].strip()}", l in LINES, l)
+for n in ("62,144", "500.0", "2.34x"):
+    check(f"short README number {n}", n in SHORT, n)
 
 b = study["baseline"]
 l = line("PPO baseline (discrete)", "steps-to-threshold")
