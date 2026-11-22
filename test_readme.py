@@ -121,6 +121,20 @@ l = line("failures / 200 episodes, init velocities U(−1.0, 1.0)", "")
 check("widened 1.0 failures", f"**{w['lqr']}** | {median(w['ppo']):.0f} median, {max(w['ppo'])} worst seed" in l, l)
 check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
 
+# LQR vs PPO summary table: the cells the rows above do not reach
+with open(os.path.join(HERE, "lqr_baseline.json"), encoding="utf-8") as f:
+    LQ = json.load(f)
+l = line("samples spent on the design", "")
+check("summary samples row", f"**{LQ['sample_cost_env_steps']} environment steps** | **{b['stt_median']:,.0f}** steps-to-threshold, "
+      f"median, IQR [{b['stt_q1']:,.0f}, {b['stt_q3']:,.0f}]" in l, l)
+l = line("nominal return, 100 consecutive episodes", "")
+check("summary nominal row", f"**{LQ['mean_return_100']:.1f}** (1000 episodes: {LQ['mean_return_1000']:.2f}, 0 failures) | "
+      f"**{b['greedy_median']:.1f}** median, {b['greedy_min']:.1f} worst seed" in l and LQ["mean_return_1000"] == 500.0, l)
+l = line("spread across 16 seeds", "")
+check("summary spread row", f"{b['solved']}/{b['n']} solved, yet" in l, l)
+l = line("moved to the MuJoCo plant (step 6)", "")
+check("summary MuJoCo row (PPO cell)", f"{cb['stt_median']:,.0f} median, {cb['solved']}/{cb['n']}" in l, l)
+
 print("LQR numbers vs a fresh lqr.py run (numpy, ~5 s)")
 import re
 import subprocess
