@@ -60,6 +60,16 @@ for tag, label, pfmt in (("no_advnorm", "no advantage normalisation", "permutati
     check(f"{tag} solved", f"{r['solved']}/{r['n']}" in l)
     check(f"{tag} p-value", pfmt.format(s["p"]) in l, pfmt.format(s["p"]))
 
+# step-5 ablation table: every cell of every row (bold stripped)
+STEP5 = {l.replace("**", "") for l in LINES}
+for tag, label in (("baseline", "baseline"), ("no_advnorm", "no advantage normalisation"),
+                   ("no_gae", "no GAE (lambda = 1)"), ("no_clip", "no ratio clipping")):
+    r = study[tag]
+    tail = "1.00x | — |" if tag == "baseline" else f"{sig[tag]['ratio']:.2f}x | " + (
+        f"{sig[tag]['p']:.3f} |" if tag == "no_advnorm" else f"{sig[tag]['p']:.4f} |")
+    row5 = f"| {label} | {r['solved']}/{r['n']} | {r['stt_median']:,.0f} | {tail}"
+    check(f"step-5 table row {tag}", row5 in STEP5, row5)
+
 # step 6, continuous actions: rows vs runs_c/summary.json
 with open(os.path.join(HERE, "runs_c", "summary.json")) as f:
     SC = json.load(f)
