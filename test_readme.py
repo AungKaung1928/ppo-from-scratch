@@ -221,6 +221,13 @@ for row4 in (f"| solved (>=475 over 100 consecutive episodes) | **{b['solved']}/
              f"| greedy eval, worst seed | {b['greedy_min']:.1f} | — |"):
     check(f"step-4 table {row4.split('|')[1].strip()}", row4 in LINES, row4)
 
+# short README prose: the same numbers sit in its table too, so pin each sentence's own line
+(head,) = [x for x in SHORT.splitlines() if x.startswith("PPO written from scratch")]
+check("short README headline", f"both reach {LQ['mean_return_100']:.1f}, but PPO spends {b['stt_median']:,.0f} environment steps "
+      f"(median, {b['n']} seeds) and its recovery basin is half the LQR's" in head and 0.45 < t[1] / t[0] < 0.55, head)
+(clip,) = [x for x in SHORT.splitlines() if x.startswith("Only ratio clipping matters")]
+check("short README clipping sentence", f"({sig['no_clip']['ratio']:.2f}x without it)" in clip, clip)
+
 # step-2 LQR tables vs lqr_baseline.json (results, basin per controller, Q sensitivity) and compare.json (widened)
 for metric, cell in (("mean return, 100 consecutive episodes", f"**{LQ['mean_return_100']:.1f}**"),
                      ("mean return, 1000 episodes", f"**{LQ['mean_return_1000']:.2f}**, 0 failures"),
