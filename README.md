@@ -24,8 +24,8 @@ cd ppo-from-scratch
 python3 -m venv .venv && . .venv/bin/activate                       # first time only
 pip install torch --index-url https://download.pytorch.org/whl/cpu   # first time only
 pip install -r requirements.txt                                     # first time only
-python lqr.py              # LQR baseline, ~5 s: 866 Riccati sweeps, 7 checks
-python ppo.py --seed 0     # one 150k-step PPO run, ~11 s
+python lqr.py              # LQR baseline, ~5 s on an idle core: 866 Riccati sweeps, 7 checks
+python ppo.py --seed 0     # one 150k-step PPO run, ~11 s on an idle core, greedy eval 500.0
 python test_readme.py      # README numbers vs runs/*.json, prints 'all passed'
 ```
 
