@@ -283,6 +283,33 @@ e25 = re.search(r"\|d theta\| ([0-9.e+-]+) rad \(([0-9.]+)% of the limit\), \|d 
 got = re.search(r"\*\*([0-9.e-]+) rad\*\* \(([0-9.]+)% of the limit\)", line("Euler vs RK4 after 25 controlled steps (0.5 s), identical forces", ""))
 check("25-step Euler row", all(near(got.group(i), float(e25.group(i))) for i in (1, 2)), e25.group(0))
 check("Euler energy gain row", near(cell("Explicit-Euler energy gain, F=0, 50 steps", r"\*\*\+([0-9.]+)%\*\*"), ve_num(r"\+([0-9.]+)% after 50 steps")))
+got = re.search(r"\| \*\*\+([0-9.]+)%\*\* \| \+([0-9.]+)% \|", line("our explicit Euler (step 1)", ""))
+check("V3 explicit Euler row", near(got.group(1), ve_num(r"\+([0-9.]+)% after 50 steps"))
+      and near(got.group(2), ve_num(r"\+([0-9.]+)% after 500")))
+
+# step-6 MuJoCo checks (V1-V5) vs a fresh mj_cartpole.py run; mujoco is an optional dependency (CI installs it)
+try:
+    import mujoco  # noqa: F401
+except ImportError:
+    print("  skip  MuJoCo rows: mujoco not installed")
+else:
+    print("MuJoCo-plant numbers vs a fresh mj_cartpole.py run (~3 s)")
+    mj = subprocess.run([sys.executable, os.path.join(HERE, "mj_cartpole.py")], capture_output=True, text=True, check=True).stdout
+    v1 = re.search(r"max abs ([0-9.e+-]+), max rel ([0-9.e+-]+)", mj)
+    got = re.search(r"max abs \*\*([0-9.e-]+)\*\*, max rel \*\*([0-9.e-]+)\*\*", line("V1. MuJoCo `qacc` == `cartpole.accelerations()`, 5000 random states", ""))
+    check("V1 at roundoff", all(float(v1.group(i)) < 1e-11 and float(got.group(i)) < 1e-11 for i in (1, 2)), v1.group(0))
+    v2 = re.search(r"median \|dtheta\| ([0-9.e+-]+) rad, max ([0-9.e+-]+) \(([0-9.]+)% of the limit\)", mj)
+    got = re.search(r"median \\\|dθ\\\| \*\*([0-9.e-]+) rad\*\*, max \*\*([0-9.e-]+)\*\* \(([0-9.]+)% of",
+                    line("V2. one-step gap, same state and same force", ""))
+    check("V2 one-step gap row", all(near(got.group(i), float(v2.group(i))) for i in (1, 2, 3)), v2.group(0))
+    v3 = re.search(r"\+([0-9.]+)% at 50 steps, \+([0-9.]+)% at 500", mj)
+    got = re.search(r"\| \+([0-9.]+)% \| \*\*\+([0-9.]+)%\*\* \|", line("MuJoCo semi-implicit", ""))
+    check("V3 MuJoCo row", all(near(got.group(i), float(v3.group(i))) for i in (1, 2)), v3.group(0))
+    v5 = re.findall(r"V5\. step-2 LQR gain on the MuJoCo plant, (bang-bang|continuous).*?mean ([0-9.]+) over 100 episodes \(min (\d+)\)", mj)
+    for name, m, lo in v5:
+        label = "bang-bang, sign only, ±10 N" if name == "bang-bang" else "continuous, clipped to ±10 N"
+        check(f"V5 {name} row", f"| {label} | **{float(m):.1f}** (min {lo}) |" in LINES, (m, lo))
+    check("V5 both controllers", len(v5) == 2, str(v5))
 
 print(f"\n{'FAILED: ' + ', '.join(FAILED) if FAILED else 'all passed'}")
 raise SystemExit(1 if FAILED else 0)

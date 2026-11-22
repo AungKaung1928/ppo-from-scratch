@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: install
-        run: pip install numpy
+        run: pip install numpy mujoco
       # Step 1: the 13 environment checks (derivation, conservation, closed-form
       # limit, contract, determinism, random-policy return, golden trajectory).
       # numpy only, about 6 s on one core.
@@ -28,7 +28,7 @@ jobs:
       # Step 2: LQR baseline, 7 checks (linearisation, DARE, gain, closed-loop). numpy only, about 5 s.
       - name: lqr
         run: python lqr.py
-      # README ablation rows vs runs/summary.json. stdlib only.
+      # README numbers vs runs/*.json and fresh verify_env.py / lqr.py / mj_cartpole.py runs (numpy + mujoco).
       - name: readme numbers
         run: python test_readme.py
 

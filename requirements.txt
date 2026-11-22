@@ -3,6 +3,6 @@
 numpy
 torch
 
-# Optional. Only mj_cartpole.py (the step-6 MuJoCo env) and visualize.py import
+# Optional. Only mj_cartpole.py (the step-6 MuJoCo env), visualize.py and the MuJoCo rows of test_readme.py import
 # it, and both import it lazily, so everything else runs without it.
 #   mujoco
