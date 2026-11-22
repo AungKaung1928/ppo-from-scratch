@@ -129,6 +129,12 @@ check("basin x row", f"**{x[0]:.3f}** vs {x[1]:.3f} m/s | PPO median over 16 see
 w = C["widened"]["1.0"]
 l = line("failures / 200 episodes, init velocities U(−1.0, 1.0)", "")
 check("widened 1.0 failures", f"**{w['lqr']}** | {median(w['ppo']):.0f} median, {max(w['ppo'])} worst seed" in l, l)
+# step-6 comparison tables: basin per controller, failures per init range (LQR | PPO median | PPO worst)
+check("basin table theta", f"| critical `theta_dot0` | **{t[0]:.3f} rad/s** | {t[1]:.3f} rad/s | {t[2]:.3f} rad/s |" in LINES)
+check("basin table x", f"| critical `x_dot0` | **{x[0]:.3f} m/s** | {x[1]:.3f} m/s | {x[2]:.3f} m/s |" in LINES)
+for k, wk in C["widened"].items():
+    row6 = f"| U(-{k}, {k}) | **{wk['lqr']}** | {median(wk['ppo']):.0f} | {max(wk['ppo'])} |"
+    check(f"widened table {k}", row6 in LINES, row6)
 check("theta span sentence", f"spans {t[3]:.3f} (seed 5) to {t[2]:.3f} (seed 0)" in "\n".join(LINES))
 
 # LQR vs PPO summary table: the cells the rows above do not reach
