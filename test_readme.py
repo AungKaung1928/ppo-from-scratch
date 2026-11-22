@@ -60,7 +60,7 @@ for tag, label, pfmt in (("no_advnorm", "no advantage normalisation", "permutati
     check(f"{tag} solved", f"{r['solved']}/{r['n']}" in l)
     check(f"{tag} p-value", pfmt.format(s["p"]) in l, pfmt.format(s["p"]))
 
-# step 6, continuous actions: rows vs runs_c/summary.json (sigma and saturation come from per-run logs, not tracked)
+# step 6, continuous actions: rows vs runs_c/summary.json
 with open(os.path.join(HERE, "runs_c", "summary.json")) as f:
     SC = json.load(f)
 cstudy = {r["tag"]: r for r in SC["study"]}
@@ -85,6 +85,13 @@ for tag, label in (("no_advnorm", "no advantage normalisation"), ("no_gae", "no 
     check(f"continuous {tag} ablation", f"| {r['solved']}/{r['n']} | {r['stt_median']:,.0f} | {s['ratio']:.2f}x |" in l, l)
 l = CTAB["**no ratio clipping**"]
 check("continuous no_clip ablation", f"**{csig['no_clip']['ratio']:.2f}x** | {csig['no_clip']['p']:.4f}" in l, l)
+for tag, label in (("baseline", "baseline"), ("no_advnorm", "no advantage normalisation"),
+                   ("no_gae", "no GAE (lambda = 1)"), ("no_clip", "**no ratio clipping**")):
+    r = cstudy[tag]
+    sat = f"{100 * r['saturation_median']:.1f}%"
+    check(f"continuous {tag} sigma + saturation", CTAB[label].endswith(
+        f"| {r['final_sigma_median']:.3f} | {'**' + sat + '**' if tag == 'no_clip' else sat} |"), CTAB[label])
+check("no_clip saturation max", f"up to {100 * cn['saturation_max']:.1f}%" in "\n".join(LINES))
 check("continuous cost sentence", f"costs {100 * cost:.1f}% of" in "\n".join(LINES))
 
 with open(os.path.join(HERE, "runs", "compare.json")) as f:

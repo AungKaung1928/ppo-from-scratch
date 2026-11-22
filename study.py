@@ -119,6 +119,10 @@ def summarise(results, budget):
             "final_rolling_median": float(np.median([r["final_rolling100"] for r in rs])),
             "wall_median": float(np.median([r["wall_clock_s"] for r in rs])),
         })
+        if "saturation_fraction" in rs[0]:  # continuous family only
+            sat = [r["saturation_fraction"] for r in rs]
+            rows[-1].update(final_sigma_median=float(np.median([r["final_sigma"] for r in rs])),
+                            saturation_median=float(np.median(sat)), saturation_max=float(max(sat)))
     return rows
 
 
